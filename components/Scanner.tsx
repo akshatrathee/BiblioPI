@@ -7,14 +7,20 @@ import { generateId, loadState } from '../services/storageService';
 interface ScannerProps {
   onScanComplete: (book: Book) => void;
   onClose: () => void;
+  onSelectBook?: (book: Book) => void;
+  existingBooks: Book[];
 }
 
-export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => {
+export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose, onSelectBook, existingBooks }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [mode, setMode] = useState<'barcode' | 'cover' | null>(null);
+
+  const recentAddedBooks = [...existingBooks]
+    .sort((a, b) => new Date(b.addedDate).getTime() - new Date(a.addedDate).getTime())
+    .slice(0, 3);
 
   useEffect(() => {
     if (mode) startCamera();
@@ -38,156 +44,249 @@ export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose }) => 
   };
 
   const startBarcodeDetection = () => {
-      // @ts-ignore
-      if (!('BarcodeDetector' in window)) return setStatus("Barcode API not supported");
-      // @ts-ignore
-      const detector = new window.BarcodeDetector({ formats: ['ean_13', 'isbn_13'] });
-      const interval = setInterval(async () => {
-          if (videoRef.current && !isScanning) {
-              try {
-                  const barcodes = await detector.detect(videoRef.current);
-                  if (barcodes.length > 0) {
-                      clearInterval(interval);
-                      handleIsbn(barcodes[0].rawValue);
-                  }
-              } catch {}
+    // @ts-ignore
+    if (!('BarcodeDetector' in window)) return setStatus("Barcode API not supported");
+    // @ts-ignore
+    const detector = new window.BarcodeDetector({ formats: ['ean_13', 'isbn_13'] });
+    const interval = setInterval(async () => {
+      if (videoRef.current && !isScanning) {
+        try {
+          const barcodes = await detector.detect(videoRef.current);
+          if (barcodes.length > 0) {
+            clearInterval(interval);
+            handleIsbn(barcodes[0].rawValue);
           }
-      }, 500);
+        } catch { }
+      }
+    }, 500);
   };
 
   const handleIsbn = async (isbn: string) => {
-      setIsScanning(true);
-      setStatus(`Found ISBN: ${isbn}`);
-      const book = await fetchBookByIsbn(isbn);
-      if (book) finish(book);
-      else setStatus("Book not found via ISBN");
-      setIsScanning(false);
+    setIsScanning(true);
+    setStatus(`Found ISBN: ${isbn}`);
+    const book = await fetchBookByIsbn(isbn);
+    if (book) {
+      finish(book);
+    } else {
+      setStatus("Book not found via ISBN");
+    }
+    setIsScanning(false);
   };
 
   const captureCover = async () => {
-      if (!videoRef.current || !canvasRef.current) return;
-      setIsScanning(true);
-      setStatus("Analyzing cover...");
-      const ctx = canvasRef.current.getContext('2d');
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
-      ctx?.drawImage(videoRef.current, 0, 0);
-      const image = canvasRef.current.toDataURL('image/jpeg');
-      try {
-          const state = loadState();
-          const book = await scanBookImage(image, state.aiSettings);
-          finish({ ...book, coverUrl: image });
-      } catch {
-          setStatus("Analysis failed");
-      }
-      setIsScanning(false);
+    if (!videoRef.current || !canvasRef.current) return;
+    setIsScanning(true);
+    setStatus("Analyzing cover...");
+    const ctx = canvasRef.current.getContext('2d');
+    canvasRef.current.width = videoRef.current.videoWidth;
+    canvasRef.current.height = videoRef.current.videoHeight;
+    ctx?.drawImage(videoRef.current, 0, 0);
+    const image = canvasRef.current.toDataURL('image/jpeg');
+    try {
+      const state = loadState();
+      const book = await scanBookImage(image, state.aiSettings);
+      finish(book); // Don't use the camera shot as cover if we have better
+    } catch {
+      setStatus("Analysis failed");
+    }
+    setIsScanning(false);
   };
 
   const finish = (partial: Partial<Book>) => {
-      onScanComplete({
-          id: generateId(),
-          isbn: partial.isbn || 'UNKNOWN',
-          title: partial.title || 'Unknown Title',
-          author: partial.author || 'Unknown',
-          genres: partial.genres || [],
-          tags: [],
-          condition: BookCondition.GOOD,
-          isFirstEdition: false,
-          isSigned: false,
-          addedDate: new Date().toISOString(),
-          addedByUserId: 'current',
-          status: ReadStatus.UNREAD,
-          coverUrl: partial.coverUrl,
-          summary: partial.summary,
-          estimatedValue: partial.estimatedValue || 0,
-          purchasePrice: 0,
-          minAge: partial.minAge,
-          parentalAdvice: partial.parentalAdvice,
-          understandingGuide: partial.understandingGuide,
-          mediaAdaptations: partial.mediaAdaptations,
-          culturalReference: partial.culturalReference,
-          amazonLink: partial.amazonLink,
-      });
+    const state = loadState();
+    const activeUser = state.users.find(u => u.id === state.currentUser) || state.users[0];
+
+    onScanComplete({
+      id: generateId(),
+      isbn: partial.isbn || 'UNKNOWN',
+      title: partial.title || 'Unknown Title',
+      author: partial.author || 'Unknown',
+      genres: partial.genres || [],
+      tags: [],
+      condition: BookCondition.GOOD,
+      isFirstEdition: false,
+      isSigned: false,
+      addedByUserId: activeUser.id,
+      addedByUserName: activeUser.name,
+      addedDate: new Date().toISOString(),
+      status: ReadStatus.UNREAD,
+      coverUrl: partial.coverUrl,
+      summary: partial.summary,
+      estimatedValue: partial.estimatedValue || 0,
+      purchasePrice: 0,
+      minAge: partial.minAge,
+      parentalAdvice: partial.parentalAdvice,
+      understandingGuide: partial.understandingGuide,
+      mediaAdaptations: partial.mediaAdaptations,
+      culturalReference: partial.culturalReference,
+      amazonLink: partial.amazonLink || `https://www.amazon.in/s?k=${encodeURIComponent(partial.title || '')}`,
+    });
+  };
+
+  const handleManualEntry = () => {
+    const isbn = prompt("Enter ISBN or Title:");
+    if (isbn) handleIsbn(isbn);
   };
 
   if (mode) {
-      return (
-          <div className="fixed inset-0 z-50 bg-black flex flex-col">
-              <div className="relative flex-1 bg-black">
-                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover opacity-80" />
-                  <canvas ref={canvasRef} className="hidden" />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-64 h-64 border-2 border-primary/50 rounded-2xl relative">
-                          <div className="absolute inset-0 border-t-2 border-primary animate-scan opacity-50"></div>
-                      </div>
-                  </div>
-                  {status && <div className="absolute bottom-32 w-full text-center text-white font-bold bg-black/50 py-2">{status}</div>}
+    return (
+      <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-fade-in">
+        <div className="relative flex-1 bg-black">
+          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover opacity-80" />
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Scanner Overlay UI */}
+          <div className="absolute inset-0 flex flex-col justify-between p-6">
+            <div className="flex justify-between items-center">
+              <button onClick={() => setMode(null)} className="size-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/10">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+              <div className="px-4 py-2 rounded-full bg-primary/20 backdrop-blur-md border border-primary/40 text-primary-light text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                </span>
+                {mode === 'barcode' ? 'Scanning Barcode' : 'Cover Analysis'}
               </div>
-              <div className="h-32 bg-black flex items-center justify-around p-4">
-                  <button onClick={() => setMode(null)} className="p-4 rounded-full bg-surface-highlight text-white"><span className="material-symbols-outlined">close</span></button>
-                  {mode === 'cover' && (
-                      <button onClick={captureCover} className="p-6 rounded-full bg-white text-black"><span className="material-symbols-outlined text-4xl">camera</span></button>
-                  )}
+              <div className="size-12"></div>
+            </div>
+
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-72 h-48 border-2 border-primary/50 rounded-2xl relative shadow-[0_0_50px_rgba(25,76,230,0.3)]">
+                <div className="absolute inset-x-0 h-0.5 bg-primary animate-scan shadow-[0_0_15px_rgba(25,76,230,0.8)]"></div>
+                <div className="absolute top-0 left-0 size-6 border-t-2 border-l-2 border-primary rounded-tl-xl"></div>
+                <div className="absolute top-0 right-0 size-6 border-t-2 border-r-2 border-primary rounded-tr-xl"></div>
+                <div className="absolute bottom-0 left-0 size-6 border-b-2 border-l-2 border-primary rounded-bl-xl"></div>
+                <div className="absolute bottom-0 right-0 size-6 border-b-2 border-r-2 border-primary rounded-br-xl"></div>
               </div>
+            </div>
+
+            <div className="text-center space-y-4">
+              {status && (
+                <div className="inline-block px-4 py-2 rounded-xl bg-black/60 backdrop-blur-md text-white text-sm font-medium border border-white/10 animate-fade-in">
+                  {status}
+                </div>
+              )}
+              <div className="flex justify-center gap-6">
+                {mode === 'cover' && (
+                  <button onClick={captureCover} className="size-20 rounded-full bg-white flex items-center justify-center text-black shadow-2xl active:scale-90 transition-all">
+                    <span className="material-symbols-outlined text-4xl">camera</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-      );
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background-light dark:bg-background-dark flex flex-col overflow-y-auto">
-      <nav className="sticky top-0 z-50 flex items-center justify-between p-4 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-gray-200 dark:border-white/5">
-        <button onClick={onClose} className="flex items-center justify-center size-10 rounded-full hover:bg-gray-200 dark:hover:bg-surface-dark transition-colors active:scale-95">
-          <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+    <div className="fixed inset-0 z-50 bg-background-light dark:bg-[#020617] flex flex-col overflow-y-auto no-scrollbar animate-fade-in pb-10">
+      <nav className="sticky top-0 z-50 flex items-center justify-between p-5 bg-[#020617]/80 backdrop-blur-md border-b border-white/5">
+        <button onClick={onClose} className="flex items-center justify-center size-10 rounded-full hover:bg-white/5 transition-colors active:scale-95">
+          <span className="material-symbols-outlined text-white">arrow_back</span>
         </button>
-        <span className="text-sm font-bold tracking-wide uppercase opacity-70">Add to Library</span>
-        <div className="size-10"></div> 
+        <span className="text-xs font-bold tracking-[0.2em] text-white/50 uppercase">Inventory Control</span>
+        <button className="size-10 flex items-center justify-center">
+          <span className="material-symbols-outlined text-white/40">help_outline</span>
+        </button>
       </nav>
-      
-      <main className="flex-1 flex flex-col items-center w-full max-w-lg mx-auto p-5 gap-6">
-        <div className="text-center space-y-2 py-2">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Add a Book</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm max-w-xs mx-auto leading-relaxed">
-            Identify your book instantly using your camera or AI recognition.
+
+      <main className="flex-1 flex flex-col items-center w-full max-w-xl mx-auto p-6 space-y-8">
+        <div className="text-center space-y-3 py-4 w-full">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary-light text-[10px] font-bold uppercase tracking-widest mb-2">
+            <span className="material-symbols-outlined text-xs">add_box</span> New Entry
+          </div>
+          <h1 className="text-4xl font-extrabold tracking-tight text-white">Add a Book</h1>
+          <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed font-medium">
+            Sync your physical collection with BiblioPi's AI-powered database.
           </p>
         </div>
-        
-        <div className="w-full space-y-5">
-          <button onClick={() => setMode('barcode')} className="group relative w-full h-48 rounded-3xl overflow-hidden text-left shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none focus:ring-4 focus:ring-primary/40 transition-all active:scale-[0.98]">
-            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBFRUn3pxBF3frlw-sqqxY3IVOAYth9seiPGd3XxH_FeXD4QWjwWLI2rwzII1pqu348Pn9noNQjQ-zRGB5htB-yjBnjM8Dle9QkMgUZamJ8dOrqgirKUby0XHMX-vICFuQ5i6jEz-UaB0H_54RcnfZfaDckBO2UmGtUBJCG6LdfCk9RbeDZV593Pyvva4fq55BKG6oAz9D5NZfniN5lMvb0cSHdmpKYUiKx7YsfQHgBl1tNgOYM6uuVrCr96AkVAbP55qI8q_m5mKad")'}}></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900/95 via-gray-900/60 to-gray-900/20 dark:from-black/95 dark:via-black/70 dark:to-black/30"></div>
-            <div className="absolute inset-0 p-6 flex flex-col justify-between z-10">
-              <div className="size-12 rounded-2xl bg-primary/20 backdrop-blur-md flex items-center justify-center border border-primary/30 text-primary-light shadow-inner shadow-primary/20">
-                <span className="material-symbols-outlined text-primary dark:text-blue-400">barcode_scanner</span>
+
+        <div className="w-full grid grid-cols-1 gap-4">
+          <button onClick={() => setMode('barcode')} className="group relative w-full h-44 rounded-[2rem] overflow-hidden text-left shadow-2xl transition-all active:scale-[0.98] border border-white/5">
+            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110" style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1589998059171-988d887df646?auto=format&fit=crop&q=80&w=400")' }}></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent"></div>
+            <div className="absolute inset-0 p-8 flex flex-col justify-between z-10">
+              <div className="size-12 rounded-2xl bg-primary/20 backdrop-blur-xl flex items-center justify-center border border-primary/30 text-primary-light">
+                <span className="material-symbols-outlined">barcode_scanner</span>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Scan Barcode</h2>
-                <p className="text-gray-300 text-sm font-medium">Capture ISBN for instant data</p>
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold text-white">Scan Barcode</h2>
+                <p className="text-slate-300 text-xs font-medium opacity-70 tracking-wide uppercase">Fastest for Modern Books</p>
               </div>
             </div>
           </button>
-          
-          <button onClick={() => setMode('cover')} className="group relative w-full h-48 rounded-3xl overflow-hidden text-left shadow-lg ring-1 ring-black/5 dark:ring-white/10 focus:outline-none focus:ring-4 focus:ring-accent-purple/40 transition-all active:scale-[0.98]">
-            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style={{backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAv4F_b7kIraPuRnakAvRy68EB0pSxZwlyV_wEtV5NpB3EDOOnSs57iZFWqk6dSPbANEPZKUbYfNW30j0R5TEGboSw7N5xWu9lmhsQWI6iKWE1DieUnOT4LQAm9C1CVNwKsOkvqKUgPfeHWobVFse5y09nEIROPSGr2dYdJCQ-q0X3KEJCYBl-CGYbKvqTqj5wdmK_flgAbUx2bA4Fu0mtDIAf0x2dSuno8mVqalh2Pto0RpIFeK9vtVuBIyRr4jubatgIJiuSzAe8L")'}}></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-900/95 via-gray-900/60 to-gray-900/20 dark:from-black/95 dark:via-black/70 dark:to-black/30"></div>
-            <div className="absolute inset-0 p-6 flex flex-col justify-between z-10">
-              <div className="size-12 rounded-2xl bg-purple-500/20 backdrop-blur-md flex items-center justify-center border border-purple-500/30 shadow-inner shadow-purple-500/20">
-                <span className="material-symbols-outlined text-purple-600 dark:text-purple-300">shutter_speed</span>
+
+          <button onClick={() => setMode('cover')} className="group relative w-full h-44 rounded-[2rem] overflow-hidden text-left shadow-2xl transition-all active:scale-[0.98] border border-white/5">
+            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110" style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400")' }}></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-900 via-black/80 to-transparent"></div>
+            <div className="absolute inset-0 p-8 flex flex-col justify-between z-10">
+              <div className="size-12 rounded-2xl bg-purple-500/20 backdrop-blur-xl flex items-center justify-center border border-purple-500/30 text-purple-300">
+                <span className="material-symbols-outlined">shutter_speed</span>
               </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
                   <h2 className="text-2xl font-bold text-white">Snap Cover</h2>
-                  <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">AI Beta</span>
+                  <span className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest shadow-lg">AI Vision</span>
                 </div>
-                <p className="text-gray-300 text-sm font-medium">Recognition for older books</p>
+                <p className="text-slate-300 text-xs font-medium opacity-70 tracking-wide uppercase">Best for Vintage & No-ISBN</p>
               </div>
             </div>
           </button>
         </div>
-        
-        <button className="mt-4 flex items-center gap-2.5 text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-white transition-colors py-3 px-6 rounded-full hover:bg-gray-200/50 dark:hover:bg-surface-dark group active:bg-gray-200 dark:active:bg-surface-dark/80">
-          <span className="material-symbols-outlined text-lg text-gray-400 group-hover:text-primary dark:group-hover:text-white transition-colors">edit_square</span>
-          <span className="font-medium text-sm">Enter ISBN or Title Manually</span>
+
+        <button
+          onClick={handleManualEntry}
+          className="w-full flex items-center justify-center gap-3 text-slate-400 hover:text-white transition-all py-5 px-6 rounded-3xl bg-white/5 hover:bg-white/10 border border-white/5 font-bold text-sm tracking-wide"
+        >
+          <span className="material-symbols-outlined text-xl">edit_square</span>
+          Enter ISBN or Title Manually
         </button>
+
+        {/* Recent Scans Section */}
+        <section className="w-full space-y-4 pt-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Recent Scans</h3>
+            <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10">History</span>
+          </div>
+
+          <div className="space-y-3">
+            {recentAddedBooks.length > 0 ? recentAddedBooks.map((book, i) => (
+              <div
+                key={book.id}
+                onClick={() => onSelectBook?.(book)}
+                className="flex items-center gap-4 bg-white/5 p-3 rounded-2xl border border-white/5 hover:border-primary/50 transition-all cursor-pointer group active:scale-[0.98] animate-fade-in-up"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="size-12 rounded-xl overflow-hidden bg-slate-800 shrink-0 relative">
+                  {book.coverUrl ? (
+                    <img src={book.coverUrl} className="w-full h-full object-cover" alt="Cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-600">
+                      <span className="material-symbols-outlined">book</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-primary/10 group-hover:bg-primary/20 transition-colors"></div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-white truncate">{book.title}</h4>
+                  <p className="text-[10px] font-bold text-primary/80 uppercase tracking-widest mt-0.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                    Recently Added
+                  </p>
+                </div>
+                <span className="material-symbols-outlined text-white/20 group-hover:text-white/60 transition-colors">chevron_right</span>
+              </div>
+            )) : (
+              <div className="py-10 flex flex-col items-center justify-center bg-white/[0.02] rounded-[2rem] border border-dashed border-white/10">
+                <span className="material-symbols-outlined text-4xl text-white/10 mb-2">history</span>
+                <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest">No recent scans yet</p>
+              </div>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   );

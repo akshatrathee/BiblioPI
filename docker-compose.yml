@@ -1,30 +1,29 @@
-name: home-librarian
+version: '3.8'
 
 services:
-  app:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    container_name: home-librarian
+  bibliopi:
+    build: .
+    container_name: bibliopi_app
     ports:
-      - "9090:9090"
-    env_file:
-      - .env
-    environment:
-      # These can be overridden by .env file
-      - API_KEY=${API_KEY}
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-      - NODE_ENV=production
+      - "9090:80"
     volumes:
-      # Persist configuration or local db if needed
       - ./data:/app/data
-    restart: unless-stopped
-    # Security hardening
-    security_opt:
-      - no-new-privileges:true
-    # Limit logging to prevent disk filling on SD cards
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - ./backups:/app/backups
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=sqlite:///app/data/library.db
+    restart: always
+  # Optional Tailscale Sidecar (Highly Recommended)
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   container_name: tailscale
+  #   hostname: bibliopi
+  #   environment:
+  #     - TS_AUTHKEY=your-auth-key
+  #     - TS_STATE_DIR=/var/lib/tailscale
+  #   volumes:
+  #     - ./tailscale:/var/lib/tailscale
+  #     - /dev/net/tun:/dev/net/tun
+  #   cap_add:
+  #     - NET_ADMIN
+  #   restart: always

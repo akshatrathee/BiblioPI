@@ -51,7 +51,7 @@ export interface Book {
   publisher?: string;
   publishedDate?: string;
   language?: string; // Koillection feature
-  
+
   // Series
   series?: string; // Koillection feature
   seriesIndex?: string; // Koillection feature (string to allow "1.5")
@@ -76,7 +76,8 @@ export interface Book {
   understandingGuide?: string;
   mediaAdaptations?: MediaAdaptation[];
   culturalReference?: string;
-  
+
+  addedByUserName: string;
   status: ReadStatus; // Track if it's owned or wishlist
 }
 
@@ -84,6 +85,7 @@ export interface ReadEntry {
   bookId: string;
   status: ReadStatus;
   dateFinished?: string;
+  readDates: string[]; // List of all completion dates
   rating?: number;
   readCount?: number;
 }
@@ -105,7 +107,7 @@ export interface User {
   age?: number; // Calculated
   grade?: string; // Calculated
   gender: 'Male' | 'Female' | 'Other';
-  
+
   parentRole?: ParentRole; // Only for Admins
   educationLevel: EducationLevel;
   profession?: string;
