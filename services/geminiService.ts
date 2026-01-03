@@ -36,15 +36,15 @@ const bookSchema: Schema = {
 };
 
 const personaSchema: Schema = {
-    type: Type.ARRAY,
-    items: {
-        type: Type.OBJECT,
-        properties: {
-            universe: { type: Type.STRING, description: "e.g. Marvel, Tolkien, Star Wars" },
-            character: { type: Type.STRING, description: "e.g. Iron Man, Gandalf" },
-            reason: { type: Type.STRING, description: "Why this user matches based on books" }
-        }
+  type: Type.ARRAY,
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      universe: { type: Type.STRING, description: "e.g. Marvel, Tolkien, Star Wars" },
+      character: { type: Type.STRING, description: "e.g. Iron Man, Gandalf" },
+      reason: { type: Type.STRING, description: "Why this user matches based on books" }
     }
+  }
 }
 
 // --- HELPERS ---
@@ -60,19 +60,20 @@ const getAi = (key?: string) => new GoogleGenAI({ apiKey: key || getApiKey() });
 // --- GEMINI IMPLEMENTATION ---
 const callGeminiImage = async (base64Image: string, settings: AiSettings) => {
   const apiKey = getApiKey();
-  if(!apiKey) throw new Error("API Key missing");
+  if (!apiKey) throw new Error("API Key missing");
 
   const ai = new GoogleGenAI({ apiKey });
   // Ensure strict base64
   const data = base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
-  
+
   // Use gemini-3-flash-preview for multimodal analysis (image to text)
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: {
       parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: data } },
-          { text: `Analyze this book for the Home Librarian app.
+        { inlineData: { mimeType: 'image/jpeg', data: data } },
+        {
+          text: `Analyze this book for the BiblioPi app.
           1. Extract ISBN, Title, Author.
           2. PROVIDE A SUMMARY (approx 50 words).
           3. Estimated Value in INR (be realistic, used book market).
@@ -81,15 +82,15 @@ const callGeminiImage = async (base64Image: string, settings: AiSettings) => {
           6. Min Age.` }
       ]
     },
-    config: { 
-        responseMimeType: "application/json",
-        responseSchema: bookSchema
-    } 
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: bookSchema
+    }
   });
-  
+
   let text = response.text || "{}";
   if (text.includes('```json')) {
-      text = text.replace(/```json/g, '').replace(/```/g, '');
+    text = text.replace(/```json/g, '').replace(/```/g, '');
   }
   return JSON.parse(text);
 };
@@ -97,98 +98,113 @@ const callGeminiImage = async (base64Image: string, settings: AiSettings) => {
 const callGeminiRecs = async (prompt: string) => {
   const ai = getAi();
   const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `${prompt}. Return JSON array.`,
-      config: { 
-        responseMimeType: "application/json",
-        responseSchema: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING },
-                    author: { type: Type.STRING },
-                    reason: { type: Type.STRING },
-                    type: { type: Type.STRING, enum: ['READ_NEXT', 'BUY_NEXT'] }
-                }
-            }
+    model: 'gemini-3-flash-preview',
+    contents: `${prompt}. Return JSON array.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            author: { type: Type.STRING },
+            reason: { type: Type.STRING },
+            type: { type: Type.STRING, enum: ['READ_NEXT', 'BUY_NEXT'] }
+          }
         }
       }
+    }
   });
   return JSON.parse(response.text || "[]");
 };
 
 const callGeminiPersonas = async (prompt: string) => {
-    const ai = getAi();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: personaSchema
-        }
-    });
-    return JSON.parse(response.text || "[]");
+  const ai = getAi();
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: personaSchema
+    }
+  });
+  return JSON.parse(response.text || "[]");
 };
 
 // --- OLLAMA IMPLEMENTATION (Simplistic) ---
 const callOllama = async (settings: AiSettings, prompt: string, image?: string) => {
-    try {
-        const body: any = {
-            model: settings.ollamaModel,
-            prompt: prompt,
-            stream: false,
-            format: "json"
-        };
-        
-        if (image) {
-            body.images = [image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "")];
-        }
+  try {
+    const body: any = {
+      model: settings.ollamaModel,
+      prompt: prompt,
+      stream: false,
+      format: "json"
+    };
 
-        const res = await fetch(`${settings.ollamaUrl}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-
-        if (!res.ok) throw new Error("Ollama connection failed");
-        
-        const data = await res.json();
-        return JSON.parse(data.response);
-    } catch (e) {
-        console.error("Ollama Error", e);
-        throw e;
+    if (image) {
+      body.images = [image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "")];
     }
+
+    const res = await fetch(`${settings.ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) throw new Error("Ollama connection failed");
+
+    const data = await res.json();
+    return JSON.parse(data.response);
+  } catch (e) {
+    console.error("Ollama Error", e);
+    throw e;
+  }
 };
 
 // --- PUBLIC API ---
 
+/**
+ * Analyzes a book cover image using AI (Gemini or Ollama).
+ * Extracts metadata, provides summaries, and estimates value.
+ * @param {string} base64Image - Base64 encoded image string.
+ * @param {AiSettings} settings - AI configuration settings.
+ * @returns {Promise<Partial<Book>>} Partial book data extracted from the image.
+ */
 export const scanBookImage = async (base64Image: string, settings: AiSettings): Promise<Partial<Book>> => {
-    if (settings.provider === 'ollama') {
-        const prompt = "Analyze book cover. JSON: {isbn, title, author, summary, genres[], tags[], minAge (num), estimatedValue (num), parentalAdvice, understandingGuide, mediaAdaptations[{title, type}]}.";
-        return await callOllama(settings, prompt, base64Image);
-    }
+  if (settings.provider === 'ollama') {
+    const prompt = "Analyze book cover. JSON: {isbn, title, author, summary, genres[], tags[], minAge (num), estimatedValue (num), parentalAdvice, understandingGuide, mediaAdaptations[{title, type}]}.";
+    return await callOllama(settings, prompt, base64Image);
+  }
 
-    const result = await callGeminiImage(base64Image, settings);
-    return {
-        ...result,
-        isFirstEdition: result.isFirstEdition || false,
-        isSigned: false,
-        condition: 'Good',
-        tags: result.tags || [],
-        genres: result.genres || [],
-        mediaAdaptations: result.mediaAdaptations || [],
-        amazonLink: `https://www.amazon.in/s?k=${encodeURIComponent((result.title || '') + ' ' + (result.author || ''))}`
-    };
+  const result = await callGeminiImage(base64Image, settings);
+  return {
+    ...result,
+    isFirstEdition: result.isFirstEdition || false,
+    isSigned: false,
+    condition: 'Good',
+    tags: result.tags || [],
+    genres: result.genres || [],
+    mediaAdaptations: result.mediaAdaptations || [],
+    amazonLink: `https://www.amazon.in/s?k=${encodeURIComponent((result.title || '') + ' ' + (result.author || ''))}`
+  };
 };
 
+/**
+ * Generates AI-powered book recommendations for a specific user.
+ * @param {User} user - The user requesting recommendations.
+ * @param {Book[]} allBooks - Entire library collection context.
+ * @param {'READ_NEXT' | 'BUY_NEXT'} type - Recommendation strategy.
+ * @param {AiSettings} settings - AI configuration settings.
+ * @returns {Promise<AiRecommendation[]>} Array of personalized recommendations.
+ */
 export const getRecommendations = async (
-  user: User, 
+  user: User,
   allBooks: Book[],
   type: 'READ_NEXT' | 'BUY_NEXT',
   settings: AiSettings
 ): Promise<AiRecommendation[]> => {
-  
+
   const userAge = calculateAge(user.dob);
 
   const readBooks = user.history.slice(0, 15).map(h => {
@@ -196,51 +212,63 @@ export const getRecommendations = async (
     return b ? `${b.title} (${b.author})` : '';
   }).filter(Boolean).join(', ');
 
-  const prompt = type === 'READ_NEXT' 
-    ? `User (Age ${userAge}) has read: [${readBooks}]. Suggest 3 books from the provided LIBRARY_LIST that they haven't read. Focus on finding hidden gems or sequels.` 
+  const prompt = type === 'READ_NEXT'
+    ? `User (Age ${userAge}) has read: [${readBooks}]. Suggest 3 books from the provided LIBRARY_LIST that they haven't read. Focus on finding hidden gems or sequels.`
     : `User (Age ${userAge}) has read: [${readBooks}]. Suggest 5 NEW books to buy (available in India).`;
 
   let libraryContext = "";
   if (type === 'READ_NEXT') {
-      const unread = allBooks
-        .filter(b => !user.history.find(h => h.bookId === b.id) && (userAge ? (b.minAge || 0) <= userAge : true))
-        .map(b => `${b.title} by ${b.author}`);
-      libraryContext = "LIBRARY_LIST: " + JSON.stringify(unread);
+    const unread = allBooks
+      .filter(b => !user.history.find(h => h.bookId === b.id) && (userAge ? (b.minAge || 0) <= userAge : true))
+      .map(b => `${b.title} by ${b.author}`);
+    libraryContext = "LIBRARY_LIST: " + JSON.stringify(unread);
   }
 
   const finalPrompt = prompt + " " + libraryContext;
 
   if (settings.provider === 'ollama') {
-      return await callOllama(settings, finalPrompt + " Format: JSON array [{title, author, reason, type}]");
+    return await callOllama(settings, finalPrompt + " Format: JSON array [{title, author, reason, type}]");
   }
 
   return await callGeminiRecs(finalPrompt);
 }
 
+/**
+ * Generates pop-culture personas for a user based on their reading patterns.
+ * @param {User} user - The user to analyze.
+ * @param {Book[]} allBooks - Entire library collection context.
+ * @param {AiSettings} settings - AI configuration settings.
+ * @returns {Promise<Persona[]>} Array of assigned personas.
+ */
 export const generatePersonas = async (user: User, allBooks: Book[], settings: AiSettings): Promise<Persona[]> => {
-    const readHistory = user.history.map(h => {
-        const b = allBooks.find(bk => bk.id === h.bookId);
-        return b ? `${b.title} by ${b.author} (Genre: ${b.genres.join(',')})` : '';
-    }).filter(Boolean).join('; ');
+  const readHistory = user.history.map(h => {
+    const b = allBooks.find(bk => bk.id === h.bookId);
+    return b ? `${b.title} by ${b.author} (Genre: ${b.genres.join(',')})` : '';
+  }).filter(Boolean).join('; ');
 
-    const prompt = `Based on this reading history: [${readHistory}], assign 3 "Pop Culture Personas" to this user. 
+  const prompt = `Based on this reading history: [${readHistory}], assign 3 "Pop Culture Personas" to this user. 
     Examples: If they read Fantasy -> Universe: LOTR, Character: Bilbo. If SciFi -> Universe: Star Trek, Character: Data.
     Universes to choose from: Marvel, DC, Star Wars, Harry Potter, Tolkien, Disney, Star Trek, Sherlock Holmes, Game of Thrones.
     Return JSON array.`;
 
-    if (settings.provider === 'ollama') {
-        return await callOllama(settings, prompt + " Format: JSON array [{universe, character, reason}]");
-    }
-    
-    return await callGeminiPersonas(prompt);
+  if (settings.provider === 'ollama') {
+    return await callOllama(settings, prompt + " Format: JSON array [{universe, character, reason}]");
+  }
+
+  return await callGeminiPersonas(prompt);
 }
 
+/**
+ * Lists available models from a local Ollama instance.
+ * @param {string} url - The Ollama API endpoint.
+ * @returns {Promise<string[]>} Array of model names.
+ */
 export const listOllamaModels = async (url: string) => {
-    try {
-        const res = await fetch(`${url}/api/tags`);
-        const data = await res.json();
-        return data.models.map((m: any) => m.name);
-    } catch {
-        return [];
-    }
+  try {
+    const res = await fetch(`${url}/api/tags`);
+    const data = await res.json();
+    return data.models.map((m: any) => m.name);
+  } catch {
+    return [];
+  }
 }

@@ -4,7 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>BiblioPi | Your AI Home Librarian</title>
+  <title>BiblioPi | Your AI Local Librarian</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0f1117" />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
@@ -12,15 +14,20 @@
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+      });
+    }
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            "primary": "#194ce6", // Classic Blue
-            "primary-dark": "#1e40af",
+            "primary": "#6366f1", // Indigo-500
+            "primary-dark": "#4f46e5",
             "background-light": "#f6f6f8",
-            "background-dark": "#0f1117", // Deep Navy
+            "background-dark": "#0f1117", // Deeper dark
             "surface-dark": "#181b25",
             "surface-card": "#1e222e",
             "surface-highlight": "#232732",
@@ -29,6 +36,16 @@
           fontFamily: {
             sans: ['Inter', 'sans-serif'],
             display: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "2xl": "1rem",
+            "3xl": "1.5rem"
+          },
+          backgroundImage: {
+            'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
           },
           animation: {
             'fade-in': 'fadeIn 0.5s ease-out',

@@ -5,15 +5,56 @@ services:
     build: .
     container_name: bibliopi_app
     ports:
-      - "9090:80"
+      - "9091:80"  # Main application
+      - "9090:80"  # Wizard/Onboarding (same container, different entry point handling)
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=sqlite:///app/data/library.db
+      # Database config (can be overridden via .env file)
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///app/data/library.db}
+      # PostgreSQL connection (used if DB_TYPE=postgres)
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-bibliopi}
+      - DB_USER=${DB_USER:-bibliopi}
+      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      # Port config
+      - WIZARD_PORT=9090
+      - APP_PORT=9091
     restart: always
-  # Optional Tailscale Sidecar (Highly Recommended)
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false  # Only required if using PostgreSQL
+
+  # PostgreSQL Database (Optional - enable if user chooses PostgreSQL in wizard)
+  # To enable: Uncomment this section and set DB_TYPE=postgres in .env
+  postgres:
+    image: postgres:16-alpine
+    container_name: bibliopi_postgres
+    profiles:
+      - postgres  # Only starts when explicitly enabled
+    environment:
+      - POSTGRES_DB=${DB_NAME:-bibliopi}
+      - POSTGRES_USER=${DB_USER:-bibliopi}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups  # For database dumps
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-bibliopi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # Optional Tailscale Sidecar (Highly Recommended for remote access)
   # tailscale:
   #   image: tailscale/tailscale:latest
   #   container_name: tailscale
@@ -27,3 +68,7 @@ services:
   #   cap_add:
   #     - NET_ADMIN
   #   restart: always
+
+volumes:
+  postgres_data:
+    driver: local

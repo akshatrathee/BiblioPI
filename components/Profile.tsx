@@ -13,30 +13,53 @@ interface ProfileProps {
 export const Profile: React.FC<ProfileProps> = ({ users, allBooks, onSettings, onAddUser, onBack, onEditUser }) => {
   const [showSortMenu, setShowSortMenu] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [sortBy, setSortBy] = React.useState<'Role' | 'Name' | 'Activity'>('Role');
 
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.role.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredUsers = users
+    .filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.role.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'Role') {
+        if (a.role === b.role) return a.name.localeCompare(b.name);
+        return a.role === 'Admin' ? -1 : 1;
+      }
+      if (sortBy === 'Name') return a.name.localeCompare(b.name);
+      if (sortBy === 'Activity') {
+        // Sort by most recent activity (reading now > finished recently > never)
+        const getLastActivity = (u: User) => {
+          const reading = u.history.find(h => h.status === ReadStatus.READING);
+          if (reading) return new Date().getTime(); // Active now
+          const lastFinished = u.history
+            .filter(h => h.status === ReadStatus.COMPLETED && h.dateFinished)
+            .sort((x, y) => new Date(y.dateFinished!).getTime() - new Date(x.dateFinished!).getTime())[0];
+          return lastFinished ? new Date(lastFinished.dateFinished!).getTime() : 0;
+        };
+        return getLastActivity(b) - getLastActivity(a);
+      }
+      return 0;
+    });
 
   return (
-    <div className="bg-background-light dark:bg-background-dark min-h-screen flex flex-col animate-fade-in relative pb-32">
-      <div className="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50">
-        <div className="flex items-center justify-between px-4 h-16">
-          <button onClick={onBack} className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-white active:scale-95">
+    <div className="bg-[#0f172a] min-h-screen flex flex-col animate-fade-in relative pb-32 font-display">
+      <div className="sticky top-0 z-20 bg-[#0f172a]/95 backdrop-blur-xl border-b border-white/5">
+        <div className="flex items-center justify-between px-4 h-16 pt-2">
+          <button onClick={onBack} className="flex items-center justify-center size-10 rounded-full hover:bg-white/5 transition-colors text-white active:scale-95">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Family Profiles</h1>
-          <button onClick={onSettings} className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-white active:scale-95">
+          <h1 className="text-lg font-bold tracking-tight text-white uppercase tracking-widest text-[10px]">Family Management</h1>
+          <button onClick={onSettings} className="flex items-center justify-center size-10 rounded-full hover:bg-white/5 transition-colors text-white active:scale-95">
             <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
-        <div className="px-4 pb-4">
+        <div className="px-5 pb-4">
+          <h2 className="text-3xl font-bold text-white mb-4">Profiles</h2>
           <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-              <span className="material-symbols-outlined text-[20px]">search</span>
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500 group-focus-within:text-primary transition-colors">
+              <span className="material-symbols-outlined text-[22px]">search</span>
             </div>
             <input
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-3 rounded-xl border-none bg-white dark:bg-surface-card/50 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary focus:bg-white dark:focus:bg-surface-card transition-all shadow-sm"
+              className="block w-full pl-11 pr-3 py-3.5 rounded-2xl border-none bg-white/5 text-white placeholder-gray-500 focus:ring-1 focus:ring-primary/50 focus:bg-white/10 transition-all shadow-inner"
               placeholder="Find a family member..."
               type="text"
             />
@@ -44,21 +67,56 @@ export const Profile: React.FC<ProfileProps> = ({ users, allBooks, onSettings, o
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between px-1">
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8">
+        {/* Family Stats Summary */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-indigo-600 to-primary rounded-3xl p-5 shadow-lg shadow-indigo-500/20 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:scale-110 transition-transform duration-500">
+              <span className="material-symbols-outlined text-5xl">auto_stories</span>
+            </div>
+            <div className="relative z-10">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-100/70 mb-1">Family total</h4>
+              <p className="text-3xl font-black text-white tracking-tighter">
+                {users.reduce((acc, u) => acc + u.history.filter(h => h.status === ReadStatus.COMPLETED).reduce((a, h) => a + (h.readCount || 1), 0), 0)}
+              </p>
+              <p className="text-[10px] font-bold text-indigo-100/50 uppercase tracking-widest mt-1">Books Read</p>
+            </div>
+          </div>
+          <div className="bg-slate-800 rounded-3xl p-5 border border-white/5 relative group overflow-hidden">
+            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:rotate-12 transition-transform duration-500">
+              <span className="material-symbols-outlined text-5xl">groups</span>
+            </div>
+            <div className="relative z-10">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Active Now</h4>
+              <div className="flex items-center gap-1.5">
+                <p className="text-3xl font-black text-white tracking-tighter">
+                  {users.filter(u => u.history.some(h => h.status === ReadStatus.READING)).length}
+                </p>
+                <div className="flex -space-x-2">
+                  {users.filter(u => u.history.some(h => h.status === ReadStatus.READING)).slice(0, 3).map(u => (
+                    <img key={u.id} src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u.avatarSeed || u.name}`} className="size-5 rounded-full ring-2 ring-slate-800" />
+                  ))}
+                </div>
+              </div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Members Reading</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-1 pt-2">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Family Members</h2>
           <div className="relative">
             <button
               onClick={() => setShowSortMenu(!showSortMenu)}
               className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
             >
-              Sort by: Role
+              Sort by: {sortBy}
               <span className="material-symbols-outlined text-[14px]">expand_more</span>
             </button>
             {showSortMenu && (
               <div className="absolute top-6 right-0 w-32 bg-white dark:bg-surface-card border border-slate-200 dark:border-white/10 rounded-xl shadow-xl py-2 z-50">
                 {['Role', 'Name', 'Activity'].map(opt => (
-                  <button key={opt} onClick={() => setShowSortMenu(false)} className="w-full px-4 py-2 text-left text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-colors">
+                  <button key={opt} onClick={() => { setSortBy(opt as any); setShowSortMenu(false); }} className={`w-full px-4 py-2 text-left text-xs font-medium transition-colors ${sortBy === opt ? 'text-primary bg-primary/5' : 'text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary'}`}>
                     {opt}
                   </button>
                 ))}
@@ -131,12 +189,19 @@ export const Profile: React.FC<ProfileProps> = ({ users, allBooks, onSettings, o
                 <div className="flex items-center gap-6 pt-3 border-t border-slate-100 dark:border-white/5">
                   <div>
                     <span className="text-base font-bold text-slate-900 dark:text-white">{completedCount}</span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1.5">Books Read</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1.5">Titles</span>
+                  </div>
+                  <div className="w-px h-6 bg-slate-200 dark:bg-white/10"></div>
+                  <div>
+                    <span className="text-base font-bold text-slate-900 dark:text-white">
+                      {u.history.reduce((acc, h) => acc + (h.status === ReadStatus.COMPLETED ? (h.readCount || 1) : 0), 0)}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1.5">Total Reads</span>
                   </div>
                   <div className="w-px h-6 bg-slate-200 dark:bg-white/10"></div>
                   <div>
                     <span className="text-base font-bold text-slate-900 dark:text-white">{u.history.filter(h => h.status === ReadStatus.READING).length}</span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1.5">In Progress</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1.5">Active</span>
                   </div>
                 </div>
 

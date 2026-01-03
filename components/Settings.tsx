@@ -5,9 +5,11 @@ interface SettingsProps {
     state: AppState;
     onUpdateState: (s: Partial<AppState>) => void;
     onClose: () => void;
+    onDownloadBackup: () => void;
+    onRestoreBackup: (json: string) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ state, onUpdateState, onClose }) => {
+export const Settings: React.FC<SettingsProps> = ({ state, onUpdateState, onClose, onDownloadBackup, onRestoreBackup }) => {
     const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'backup' | 'db' | 'api' | 'about'>('general');
 
     // Local state for forms
@@ -107,6 +109,44 @@ export const Settings: React.FC<SettingsProps> = ({ state, onUpdateState, onClos
                                         </button>
                                     </div>
                                 </div>
+                                <div className="space-y-4 pt-6 border-t border-white/5">
+                                    <h4 className="flex items-center gap-2 text-sm font-bold text-white">
+                                        <span className="material-symbols-outlined text-primary text-xl">settings_input_component</span>
+                                        Library Quality of Life
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <label className="flex items-center justify-between p-4 bg-slate-950/40 rounded-2xl border border-white/5 hover:border-white/10 cursor-pointer transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <span className="material-symbols-outlined text-slate-400">payments</span>
+                                                <div>
+                                                    <p className="text-sm font-bold text-white">Display Estimated Value</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium">Show INR valuation on book cards and dashboard</p>
+                                                </div>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={state.qolSettings.showValue}
+                                                onChange={e => onUpdateState({ qolSettings: { ...state.qolSettings, showValue: e.target.checked } })}
+                                                className="size-5 rounded border-white/10 bg-white/5 text-primary focus:ring-primary focus:ring-offset-slate-900"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-4 bg-slate-950/40 rounded-2xl border border-white/5 hover:border-white/10 cursor-pointer transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <span className="material-symbols-outlined text-slate-400">blur_on</span>
+                                                <div>
+                                                    <p className="text-sm font-bold text-white">Vibrant UI (Glassmorphism)</p>
+                                                    <p className="text-[10px] text-slate-500 font-medium">Enable heavy blur and transparency effects</p>
+                                                </div>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={state.qolSettings.vibrantUi}
+                                                onChange={e => onUpdateState({ qolSettings: { ...state.qolSettings, vibrantUi: e.target.checked } })}
+                                                className="size-5 rounded border-white/10 bg-white/5 text-primary focus:ring-primary focus:ring-offset-slate-900"
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -187,6 +227,58 @@ export const Settings: React.FC<SettingsProps> = ({ state, onUpdateState, onClos
                                         </div>
                                     )}
                                 </div>
+
+                                <div className="bg-white/5 rounded-2xl p-6 border border-white/5 space-y-4">
+                                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary">upload_file</span>
+                                        Bulk Data Import
+                                    </h4>
+                                    <p className="text-xs text-slate-500 font-medium">Migrate from legacy systems. Supports CSV and JSON formats.</p>
+
+                                    <div className="relative">
+                                        <input
+                                            type="file"
+                                            accept=".csv,.json"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    try {
+                                                        const { parseBulkFile, validateImportedBook } = await import('../services/importService');
+                                                        const { generateId } = await import('../services/storageService');
+                                                        const rawBooks = await parseBulkFile(file);
+                                                        const validBooks = rawBooks.filter(validateImportedBook).map(b => ({
+                                                            ...b,
+                                                            id: generateId(),
+                                                            addedDate: new Date().toISOString(),
+                                                        })) as any;
+
+                                                        if (validBooks.length > 0) {
+                                                            onUpdateState({ books: [...state.books, ...validBooks] });
+                                                            alert(`Successfully imported ${validBooks.length} books!`);
+                                                        } else {
+                                                            alert("No valid books found in file. Ensure 'title' and 'author' are present.");
+                                                        }
+                                                    } catch (err: any) {
+                                                        alert("Import failed: " + err.message);
+                                                    }
+                                                }
+                                            }}
+                                            className="hidden"
+                                            id="bulk-import-input"
+                                        />
+                                        <label
+                                            htmlFor="bulk-import-input"
+                                            className="flex h-14 items-center justify-center rounded-2xl bg-white/5 border border-dashed border-white/20 text-white font-bold text-sm hover:bg-white/10 hover:border-primary/50 transition-all cursor-pointer"
+                                        >
+                                            <span className="material-symbols-outlined mr-2">add_circle</span>
+                                            Choose File (CSV or JSON)
+                                        </label>
+                                    </div>
+                                    <div className="flex gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
+                                        <span>✓ Max 10MB</span>
+                                        <span>✓ UTF-8 Encoding</span>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -212,6 +304,32 @@ export const Settings: React.FC<SettingsProps> = ({ state, onUpdateState, onClos
                                         </button>
                                     )}
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                        onClick={onDownloadBackup}
+                                        className="h-20 bg-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-all"
+                                    >
+                                        <span className="material-symbols-outlined text-primary">download</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white">Full Backup</span>
+                                    </button>
+                                    <label className="h-20 bg-white/5 border border-white/10 rounded-2xl flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-all cursor-pointer">
+                                        <span className="material-symbols-outlined text-purple-400">upload</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white">Restore DB</span>
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept=".json"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const text = await file.text();
+                                                    onRestoreBackup(text);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                             </div>
                         )}
 
@@ -220,11 +338,23 @@ export const Settings: React.FC<SettingsProps> = ({ state, onUpdateState, onClos
                                 <div className="bg-white/5 rounded-2xl p-6 border border-white/5 space-y-6">
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Google API Key (OpenLibrary/Search)</label>
-                                        <input type="password" placeholder="AIzaSy..." className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white outline-none focus:ring-2 focus:ring-primary" />
+                                        <input
+                                            type="password"
+                                            value={aiSettings.googleApiKey || ''}
+                                            onChange={e => setAiSettings({ ...aiSettings, googleApiKey: e.target.value })}
+                                            placeholder="AIzaSy..."
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white outline-none focus:ring-2 focus:ring-primary"
+                                        />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Whisper (STT) Endpoint / Key</label>
-                                        <input placeholder="https://api.openai.com/v1" className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white outline-none focus:ring-2 focus:ring-primary" />
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Gemini API Key</label>
+                                        <input
+                                            type="password"
+                                            value={aiSettings.geminiApiKey || ''}
+                                            onChange={e => setAiSettings({ ...aiSettings, geminiApiKey: e.target.value })}
+                                            placeholder="AIzaSy..."
+                                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white outline-none focus:ring-2 focus:ring-primary"
+                                        />
                                     </div>
                                 </div>
                             </div>

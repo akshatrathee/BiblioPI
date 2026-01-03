@@ -79,6 +79,10 @@ export interface Book {
 
   addedByUserName: string;
   status: ReadStatus; // Track if it's owned or wishlist
+
+  // Digital Reader
+  fileUrl?: string; // URL to PDF/EPUB
+  fileType?: 'pdf' | 'epub';
 }
 
 export interface ReadEntry {
@@ -103,6 +107,8 @@ export interface User {
   id: string;
   name: string;
   email?: string;
+  authProvider?: 'google' | 'local';
+  authId?: string;
   dob: string; // ISO Date String
   age?: number; // Calculated
   grade?: string; // Calculated
@@ -123,6 +129,8 @@ export interface AiSettings {
   provider: 'gemini' | 'ollama';
   ollamaUrl: string;
   ollamaModel: string;
+  googleApiKey?: string;
+  geminiApiKey?: string;
 }
 
 export interface DbSettings {
@@ -134,12 +142,26 @@ export interface DbSettings {
 }
 
 export interface BackupSettings {
-  frequency: 'weekly' | 'daily' | 'manual';
-  location: 'local' | 'drive' | 'nas';
+  frequency: 'weekly' | 'daily' | 'monthly' | 'manual'; // Added monthly
+  enabledLocal: boolean;
+  enabledNas: boolean;
+  enabledDrive: boolean;
   lastBackupDate?: string;
   nasPath?: string;
   googleDriveConnected: boolean;
   googleDriveUser?: string;
+}
+
+export interface ApiSettings {
+  googleKey?: string;
+  whisperUrl?: string;
+  whisperKey?: string;
+}
+
+export interface QolSettings {
+  showValue: boolean;
+  vibrantUi: boolean;
+  autoAnalyze: boolean;
 }
 
 export interface AppState {
@@ -154,6 +176,8 @@ export interface AppState {
   aiSettings: AiSettings;
   dbSettings: DbSettings;
   backupSettings: BackupSettings;
+  apiSettings: ApiSettings;
+  qolSettings: QolSettings;
 }
 
 export interface AiRecommendation {

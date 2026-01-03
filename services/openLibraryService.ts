@@ -13,6 +13,11 @@ interface OpenLibraryResponse {
   }
 }
 
+/**
+ * Fetches book metadata from the OpenLibrary API using an ISBN.
+ * @param {string} isbn - The ISBN-10 or ISBN-13 string to search for.
+ * @returns {Promise<Partial<Book> | null>} Partial book data or null if not found.
+ */
 export const fetchBookByIsbn = async (isbn: string): Promise<Partial<Book> | null> => {
   try {
     const cleanIsbn = isbn.replace(/-/g, '').trim();

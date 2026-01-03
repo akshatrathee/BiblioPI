@@ -8,24 +8,120 @@ import { Maintenance } from './components/Maintenance';
 import { LocationManager } from './components/LocationManager';
 import { Onboarding } from './components/Onboarding';
 import { LoansManager } from './components/LoansManager';
+import { Bookshelf } from './components/Bookshelf';
+import { Analytics } from './components/Analytics';
+import { DigitalReader } from './components/DigitalReader';
 import { BookDetails } from './components/BookDetails';
 import { Settings } from './components/Settings';
 import { UserModal } from './components/UserModal';
 import { LoanModal } from './components/LoanModal';
 import { Icons } from './components/Icons';
-import { loadState, saveState } from './services/storageService';
-import { AppState, Book, User, Loan } from './types';
+import { loadState, saveState, generateId, downloadBackup, restoreFromBackup, generateAutoTags } from './services/storageService';
+import { fetchBookByIsbn } from './services/openLibraryService';
+import { useLaserScanner } from './hooks/useLaserScanner';
+import { AppState, Book, User, Loan, ReadStatus, ReadEntry, BookCondition } from './types';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(loadState());
-  const [currentView, setCurrentView] = useState<'dashboard' | 'library' | 'loans' | 'profile' | 'scanner' | 'buy-next' | 'maintenance' | 'locations'>('dashboard');
+
+  // LASER SCANNER SUPPORT
+  useLaserScanner(async (isbn) => {
+    try {
+      const bookData = await fetchBookByIsbn(isbn);
+      if (bookData) {
+        const activeUser = state.users.find(u => u.id === state.currentUser) || state.users[0];
+        const autoTags = generateAutoTags(bookData.title || '', bookData.summary || '');
+        const newBook: Book = {
+          ...bookData,
+          id: generateId(),
+          isbn: isbn,
+          addedByUserId: activeUser.id,
+          addedByUserName: activeUser.name,
+          addedDate: new Date().toISOString(),
+          status: ReadStatus.UNREAD,
+          condition: BookCondition.GOOD,
+          tags: autoTags,
+          purchasePrice: 0,
+        } as Book;
+
+        setState(prev => ({ ...prev, books: [...prev.books, newBook] }));
+        setSelectedBook(newBook);
+        alert(`New book scanned: ${newBook.title}`);
+      }
+    } catch (err) {
+      console.error("Scan error:", err);
+    }
+  });
+
+  type CurrentView = 'dashboard' | 'library' | 'loans' | 'profile' | 'scanner' | 'buy-next' | 'maintenance' | 'locations' | 'bookshelf' | 'analytics' | 'reader';
+  const [currentView, setCurrentViewState] = useState<CurrentView>('dashboard');
+
+  // Helper to change view and push to history
+  const setCurrentView = (view: CurrentView) => {
+    setCurrentViewState(view);
+    window.history.pushState({ view }, '', `#${view}`);
+  };
 
   // Global Overlays
-  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [selectedBook, setSelectedBookState] = useState<Book | null>(null);
+
+  const setSelectedBook = (book: Book | null) => {
+    setSelectedBookState(book);
+    if (book) {
+      window.history.pushState({ view: currentView, bookId: book.id }, '', `#book/${book.id}`);
+    }
+  };
+
   const [showSettings, setShowSettings] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [loanBook, setLoanBook] = useState<Book | null>(null);
   const [libraryTab, setLibraryTab] = useState<'all' | 'unread' | 'favorites' | 'recent'>('all');
+
+  // Handle Browser Back Button & Keyboard Shortcuts
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // If we are navigating back and there was a book selected, deselect it
+      if (selectedBook && !event.state?.bookId) {
+        setSelectedBookState(null);
+        return;
+      }
+
+      if (event.state?.view) {
+        setCurrentViewState(event.state.view);
+      } else {
+        // Fallback or Initial Load
+        const hash = window.location.hash.replace('#', '');
+        const validViews = ['dashboard', 'library', 'scanner', 'profile', 'maintenance'];
+        if (validViews.includes(hash)) {
+          setCurrentViewState(hash as any);
+        }
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedBook) {
+          setSelectedBookState(null);
+          window.history.back();
+        } else if (currentView !== 'dashboard') {
+          setCurrentView('dashboard');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Initial Push
+    if (!window.history.state) {
+      window.history.replaceState({ view: currentView }, '', `#${currentView}`);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedBook, currentView]);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Persist state
@@ -45,6 +141,7 @@ const App: React.FC = () => {
         setState(prev => ({
           ...prev,
           isSetupComplete: true,
+          isDemoMode: false,
           aiSettings: { provider: data.aiProvider, ollamaUrl: data.ollamaUrl, ollamaModel: data.ollamaModel },
           users: data.users,
           locations: data.rooms,
@@ -60,6 +157,10 @@ const App: React.FC = () => {
   const activeUser = state.users.find(u => u.id === state.currentUser) || state.users[0];
 
   // --- HANDLERS ---
+  /**
+   * Updates a book's metadata in the global state.
+   * @param {Book} updatedBook - The book object with new values.
+   */
   const handleUpdateBook = (updatedBook: Book) => {
     setState(prev => ({
       ...prev,
@@ -71,6 +172,9 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * Deletes the currently selected book after confirmation.
+   */
   const handleDeleteBook = () => {
     if (selectedBook) {
       if (confirm("Are you sure you want to delete this book?")) {
@@ -80,11 +184,19 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * Records a new book loan in the global state.
+   * @param {Loan} loan - The loan record.
+   */
   const handleCreateLoan = (loan: Loan) => {
     setState(prev => ({ ...prev, loans: [...prev.loans, loan] }));
     setLoanBook(null);
   };
 
+  /**
+   * Saves or updates a user profile.
+   * @param {User} user - The user object to save.
+   */
   const handleUpdateUser = (user: User) => {
     const exists = state.users.find(u => u.id === user.id);
     setState(prev => ({
@@ -97,6 +209,11 @@ const App: React.FC = () => {
     setEditingUser(null);
   };
 
+  /**
+   * Toggles the read status of a book for the active user.
+   * Updates both the user's reading history and the book's status.
+   * @param {string} bookId - ID of the book to toggle.
+   */
   const handleToggleRead = (bookId: string) => {
     setState(prev => {
       const updatedUsers = prev.users.map(u => {
@@ -145,8 +262,20 @@ const App: React.FC = () => {
     });
   };
 
+  /**
+   * Finalizes a book scan by adding user attribution and auto-generated tags.
+   * @param {Book} newBook - The raw book data from the scanner.
+   */
   const handleScanComplete = (newBook: Book) => {
-    const bookWithUser = { ...newBook, id: Math.random().toString(36).substr(2, 9), addedByUserId: activeUser.id, addedDate: new Date().toISOString() };
+    const autoTags = generateAutoTags(newBook.title || '', newBook.summary || '');
+    const bookWithUser = {
+      ...newBook,
+      id: generateId(),
+      addedByUserId: activeUser.id,
+      addedByUserName: activeUser.name,
+      addedDate: new Date().toISOString(),
+      tags: [...(newBook.tags || []), ...autoTags]
+    };
     setState(prev => ({
       ...prev,
       books: [...prev.books, bookWithUser]
@@ -155,6 +284,11 @@ const App: React.FC = () => {
     setSelectedBook(bookWithUser);
   };
 
+  /**
+   * Resolves a location name and its parent room into a breadcrumb string.
+   * @param {string} id - The location ID.
+   * @returns {string} Formatted location string (e.g., "Living Room > Shelf A").
+   */
   const getLocationName = (id?: string) => {
     if (!id) return 'Unassigned';
     const loc = state.locations.find(l => l.id === id);
@@ -166,20 +300,70 @@ const App: React.FC = () => {
     }
     return loc.name;
   };
+  const handleResetHistory = (bookId: string, type: 'undo' | 'reset') => {
+    setState(prev => {
+      const updatedUsers = prev.users.map(u => {
+        if (u.id === prev.currentUser || (!prev.currentUser && u.id === prev.users[0]?.id)) {
+          const history = u.history.map(h => {
+            if (h.bookId === bookId) {
+              if (type === 'undo') {
+                const newReadDates = [...(h.readDates || [])];
+                newReadDates.pop();
+                return {
+                  ...h,
+                  readCount: Math.max(0, (h.readCount || 1) - 1),
+                  readDates: newReadDates,
+                  dateFinished: newReadDates.length > 0 ? newReadDates[newReadDates.length - 1] : undefined,
+                  status: newReadDates.length > 0 ? ReadStatus.COMPLETED : ReadStatus.UNREAD
+                };
+              } else {
+                return null; // Remove from history
+              }
+            }
+            return h;
+          }).filter(Boolean) as ReadEntry[];
+          return { ...u, history };
+        }
+        return u;
+      });
+      return { ...prev, users: updatedUsers };
+    });
+  };
 
   return (
-    <div className="min-h-screen font-display bg-background-dark text-white">
+    <div className={`min-h-screen font-display bg-background-dark text-white ${state.qolSettings.vibrantUi ? 'vibrant-ui' : 'vibrant-ui-off'}`}>
+      {state.qolSettings.vibrantUi && (
+        <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+          <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-primary/10 rounded-full blur-[120px] animate-pulse"></div>
+          <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-purple-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '3s' }}></div>
+        </div>
+      )}
+
+      {state.isDemoMode && (
+        <div className="fixed top-0 inset-x-0 z-[100] bg-amber-500 text-black py-1.5 px-4 flex items-center justify-center gap-3 shadow-lg">
+          <span className="material-symbols-outlined text-lg">warning</span>
+          <p className="text-[10px] font-black uppercase tracking-widest text-center">
+            Demo Mode Enabled: Library is populated with example items. Please complete setup to personalize.
+          </p>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="ml-4 px-3 py-1 rounded-full bg-black text-white text-[9px] font-bold uppercase transition-all active:scale-95 shadow-md"
+          >
+            Configure AI
+          </button>
+        </div>
+      )}
+
       {currentView === 'dashboard' && (
         <Dashboard
           state={state}
-          onProfile={() => setCurrentView('profile')}
-          onNotifications={() => setCurrentView('maintenance')}
-          onSelectBook={setSelectedBook}
+          onManageLoans={() => setCurrentView('maintenance')}
+          onBookClick={setSelectedBook}
+          onAnalytics={() => setCurrentView('analytics')}
           onSeeAll={() => {
             setLibraryTab('recent');
             setCurrentView('library');
           }}
-          onBuyNext={() => setCurrentView('buy-next')}
         />
       )}
 
@@ -189,6 +373,7 @@ const App: React.FC = () => {
           onSelectBook={setSelectedBook}
           onScan={() => setCurrentView('scanner')}
           onProfile={() => setCurrentView('profile')}
+          onBookshelf={() => setCurrentView('bookshelf')}
           initialTab={libraryTab}
         />
       )}
@@ -202,6 +387,21 @@ const App: React.FC = () => {
           onEditUser={(u) => { setEditingUser(u); setShowUserModal(true); }}
           onSettings={() => setShowSettings(true)}
           onAddUser={() => { setEditingUser(null); setShowUserModal(true); }}
+          onBack={() => setCurrentView('dashboard')}
+        />
+      )}
+
+      {currentView === 'bookshelf' && (
+        <Bookshelf
+          books={state.books}
+          onBack={() => setCurrentView('library')}
+          onSelectBook={setSelectedBook}
+        />
+      )}
+
+      {currentView === 'analytics' && (
+        <Analytics
+          state={state}
           onBack={() => setCurrentView('dashboard')}
         />
       )}
@@ -239,6 +439,13 @@ const App: React.FC = () => {
         />
       )}
 
+      {currentView === 'reader' && selectedBook && (
+        <DigitalReader
+          book={selectedBook}
+          onClose={() => setCurrentView('library')}
+        />
+      )}
+
       {/* --- MODALS & OVERLAYS --- */}
 
       {selectedBook && (
@@ -248,11 +455,14 @@ const App: React.FC = () => {
           users={state.users}
           locations={state.locations}
           getLocationName={getLocationName}
+          showValue={state.qolSettings.showValue}
           onClose={() => setSelectedBook(null)}
           onUpdateBook={handleUpdateBook}
           onDelete={handleDeleteBook}
           onLoan={() => setLoanBook(selectedBook)}
           onToggleRead={handleToggleRead}
+          onResetHistory={handleResetHistory}
+          onOpenReader={() => setCurrentView('reader')}
         />
       )}
 
@@ -261,6 +471,16 @@ const App: React.FC = () => {
           state={state}
           onUpdateState={(partial) => setState(prev => ({ ...prev, ...partial }))}
           onClose={() => setShowSettings(false)}
+          onDownloadBackup={() => downloadBackup(state)}
+          onRestoreBackup={(json) => {
+            try {
+              const newState = restoreFromBackup(json);
+              setState(newState);
+              alert("Database restored successfully!");
+            } catch (e) {
+              alert("Restore failed: Invalid backup file");
+            }
+          }}
         />
       )}
 
@@ -284,32 +504,41 @@ const App: React.FC = () => {
       {/* --- NAVIGATION --- */}
 
       {currentView !== 'scanner' && !selectedBook && (
-        <nav className="fixed bottom-0 left-0 w-full z-40 bg-white/90 dark:bg-[#0f1117]/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/5 pb-safe safe-area-bottom">
-          <div className="flex justify-around items-center h-[68px]">
-            <button onClick={() => setCurrentView('dashboard')} className={`flex flex-col items-center justify-center w-full h-full gap-1 ${currentView === 'dashboard' ? 'text-primary relative' : 'text-gray-400 hover:text-white'}`}>
-              {currentView === 'dashboard' && <span className="absolute -top-[1px] w-8 h-1 bg-primary rounded-b-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></span>}
-              <Icons.Dashboard size={26} />
-              <span className="text-[10px] font-semibold">Home</span>
+        <nav className="fixed bottom-0 left-0 w-full z-50 bg-white/90 dark:bg-[#0f1117]/90 backdrop-blur-xl border-t border-gray-200 dark:border-white/5 pb-safe safe-area-bottom">
+          <div className="flex justify-around items-center h-20 px-2">
+            <button onClick={() => setCurrentView('dashboard')} className={`relative flex flex-col items-center justify-center w-full h-full gap-1 group ${currentView === 'dashboard' ? 'text-primary' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+              {currentView === 'dashboard' && <div className="absolute -top-[1px] w-10 h-1 bg-primary rounded-b-full shadow-[0_0_15px_rgba(99,102,241,0.6)]"></div>}
+              <span className="material-symbols-outlined text-[26px] transition-transform group-active:scale-95">dashboard</span>
+              <span className="text-[10px] font-bold">Home</span>
             </button>
-            <button onClick={() => { setLibraryTab('all'); setCurrentView('library'); }} className={`flex flex-col items-center justify-center w-full h-full gap-1 ${currentView === 'library' ? 'text-primary relative' : 'text-gray-400 hover:text-white'}`}>
-              {currentView === 'library' && <span className="absolute -top-[1px] w-8 h-1 bg-primary rounded-b-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></span>}
-              <Icons.Library size={26} />
-              <span className="text-[10px] font-medium">Library</span>
-            </button>
-
-            <button onClick={() => setCurrentView('scanner')} className="size-14 rounded-full bg-primary hover:bg-primary-dark text-white shadow-lg shadow-primary/40 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 mb-8">
-              <Icons.Plus size={30} />
+            <button onClick={() => { setLibraryTab('all'); setCurrentView('library'); }} className={`relative flex flex-col items-center justify-center w-full h-full gap-1 group ${currentView === 'library' ? 'text-primary' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+              {currentView === 'library' && <div className="absolute -top-[1px] w-10 h-1 bg-primary rounded-b-full shadow-[0_0_15px_rgba(99,102,241,0.6)]"></div>}
+              <span className="material-symbols-outlined text-[26px] transition-transform group-active:scale-95">library_books</span>
+              <span className="text-[10px] font-bold">Library</span>
             </button>
 
-            <button onClick={() => setCurrentView('loans')} className={`flex flex-col items-center justify-center w-full h-full gap-1 ${currentView === 'loans' ? 'text-primary relative' : 'text-gray-400 hover:text-white'}`}>
-              {currentView === 'loans' && <span className="absolute -top-[1px] w-8 h-1 bg-primary rounded-b-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></span>}
-              <Icons.Loan size={26} />
-              <span className="text-[10px] font-medium">Loans</span>
+            <div className="relative -top-6">
+              <button onClick={() => setCurrentView('scanner')} className="size-16 rounded-full bg-gradient-to-br from-primary to-indigo-600 text-white shadow-xl shadow-primary/30 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border-4 border-white dark:border-[#0f1117]">
+                <span className="material-symbols-outlined text-[32px]">add_a_photo</span>
+              </button>
+            </div>
+
+            <button onClick={() => setCurrentView('loans')} className={`relative flex flex-col items-center justify-center w-full h-full gap-1 group ${currentView === 'loans' ? 'text-primary' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+              {currentView === 'loans' && <div className="absolute -top-[1px] w-10 h-1 bg-primary rounded-b-full shadow-[0_0_15px_rgba(99,102,241,0.6)]"></div>}
+              <span className="material-symbols-outlined text-[26px] transition-transform group-active:scale-95">swap_horiz</span>
+              <span className="text-[10px] font-bold">Loans</span>
             </button>
-            <button onClick={() => setCurrentView('profile')} className={`flex flex-col items-center justify-center w-full h-full gap-1 ${currentView === 'profile' ? 'text-primary relative' : 'text-gray-400 hover:text-white'}`}>
-              {currentView === 'profile' && <span className="absolute -top-[1px] w-8 h-1 bg-primary rounded-b-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></span>}
-              <Icons.User size={26} />
-              <span className="text-[10px] font-medium">Profile</span>
+            <button onClick={() => setCurrentView('profile')} className={`relative flex flex-col items-center justify-center w-full h-full gap-1 group ${currentView === 'profile' ? 'text-primary' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+              {currentView === 'profile' && <div className="absolute -top-[1px] w-10 h-1 bg-primary rounded-b-full shadow-[0_0_15px_rgba(99,102,241,0.6)]"></div>}
+              {/* Use Avatar if available for profile icon, else Icon */}
+              {activeUser.avatarSeed ? (
+                <div className={`size-6 rounded-full overflow-hidden border ${currentView === 'profile' ? 'border-primary' : 'border-transparent'}`}>
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${activeUser.avatarSeed}`} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span className="material-symbols-outlined text-[26px] transition-transform group-active:scale-95">person</span>
+              )}
+              <span className="text-[10px] font-bold">Profile</span>
             </button>
           </div>
         </nav>

@@ -17,6 +17,7 @@ export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose, onSel
   const [isScanning, setIsScanning] = useState(false);
   const [status, setStatus] = useState<string>('');
   const [mode, setMode] = useState<'barcode' | 'cover' | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const recentAddedBooks = [...existingBooks]
     .sort((a, b) => new Date(b.addedDate).getTime() - new Date(a.addedDate).getTime())
@@ -125,7 +126,9 @@ export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose, onSel
 
   const handleManualEntry = () => {
     const isbn = prompt("Enter ISBN or Title:");
-    if (isbn) handleIsbn(isbn);
+    if (isbn && isbn.trim()) {
+      handleIsbn(isbn.trim());
+    }
   };
 
   if (mode) {
@@ -188,10 +191,47 @@ export const Scanner: React.FC<ScannerProps> = ({ onScanComplete, onClose, onSel
           <span className="material-symbols-outlined text-white">arrow_back</span>
         </button>
         <span className="text-xs font-bold tracking-[0.2em] text-white/50 uppercase">Inventory Control</span>
-        <button className="size-10 flex items-center justify-center">
+        <button onClick={() => setShowHelp(true)} className="size-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors">
           <span className="material-symbols-outlined text-white/40">help_outline</span>
         </button>
       </nav>
+
+      {showHelp && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in" onClick={() => setShowHelp(false)}>
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] max-w-sm w-full shadow-2xl space-y-6 relative overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="absolute top-0 right-0 p-8 opacity-5">
+              <span className="material-symbols-outlined text-9xl">help</span>
+            </div>
+            <div className="space-y-2 relative z-10">
+              <h2 className="text-2xl font-black text-slate-900 dark:text-white">Scanning Guide</h2>
+              <p className="text-slate-500 text-sm font-medium">Get the best results for your collection.</p>
+            </div>
+            <div className="space-y-4 relative z-10">
+              <div className="flex gap-4">
+                <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-primary">barcode_scanner</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">Barcode Scanner</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">Best for modern books with internal ISBNs. Just point and wait for the click.</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="size-10 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-purple-500">shutter_speed</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">Snap Cover (AI)</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">Perfect for vintage books. Our AI identifies titles, authors, and editions from the cover art.</p>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setShowHelp(false)} className="w-full py-4 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-2xl font-bold text-sm shadow-xl active:scale-95 transition-all">
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex flex-col items-center w-full max-w-xl mx-auto p-6 space-y-8">
         <div className="text-center space-y-3 py-4 w-full">

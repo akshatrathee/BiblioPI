@@ -52,7 +52,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ state, onBack, onSelec
                             </div>
                         ) : overdueLoans.map(loan => {
                             const book = books.find(b => b.id === loan.bookId);
-                            const user = users.find(u => u.id === loan.userId);
+                            // Loan only stores borrowerName string, not userId
                             return (
                                 <div key={loan.id} className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -61,7 +61,7 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ state, onBack, onSelec
                                         </div>
                                         <div>
                                             <p className="text-sm font-bold truncate max-w-[150px]">{book?.title || 'Unknown'}</p>
-                                            <p className="text-[10px] text-red-400 font-bold uppercase">with {user?.name || 'Guest'}</p>
+                                            <p className="text-[10px] text-red-400 font-bold uppercase">with {loan.borrowerName}</p>
                                         </div>
                                     </div>
                                     <button className="h-9 px-4 rounded-xl bg-red-500 text-white text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all">
@@ -138,8 +138,8 @@ export const Maintenance: React.FC<MaintenanceProps> = ({ state, onBack, onSelec
                     >
                         Manage Locations
                     </button>
-                </div>        </div>
+                </div>
+            </div>
         </div>
-        </div >
     );
 };
