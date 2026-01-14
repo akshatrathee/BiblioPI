@@ -38,7 +38,7 @@ BiblioPi can be installed locally for development or deployed using Docker for p
    npm run dev
    ```
 
-   The app will be available at `http://localhost:5173`.
+   The app will be available at `http://localhost:9090`.
 
 ## First Run (Onboarding)
 
@@ -241,20 +241,20 @@ docker compose --profile postgres up -d
 
 ## Port Segregation for Security
 
-BiblioPi uses **dual-port architecture** for enhanced security:
+BiblioPi exposes two ports for organizational purposes:
 
-### Port 9090: Onboarding Wizard
+### Port 9090: Onboarding Wizard Entry Point
 
-- **Purpose**: First-time setup and initial configuration
-- **Usage**: Only needed during initial setup
-- **Security**: Can be closed/blocked after onboarding complete
-- **Firewall**: Recommend restricting to localhost or local network only
+- **Purpose**: Suggested entry point for first-time setup
+- **Usage**: Access during initial setup, then optionally block
+- **Note**: Both ports serve the same application - the separation is for firewall convenience
+- **Security**: Can be blocked after onboarding complete for reduced attack surface
 
-### Port 9091: Main Application
+### Port 9091: Main Application Entry Point
 
-- **Purpose**: Primary application interface
+- **Purpose**: Suggested entry point for daily use
 - **Usage**: Daily library management
-- **Security**: Keep open for regular access
+- **Note**: Same application as port 9090
 - **Firewall**: Expose to your network (or Tailscale for remote access)
 
 ### Firewall Configuration Example

@@ -1,10 +1,10 @@
 # BiblioPi Technical Walkthrough
 
-This document provides a deep dive into the technical architecture and implementation of BiblioPi (v1.2.0).
+This document provides a deep dive into the technical architecture and implementation of BiblioPi (v1.3.0).
 
 ## Phase 1: Core Architecture
 
-BiblioPi is built as a highly performant **React 19** application using **Vite** as its build engine. The primary design philosophy is "Offline-First" and "Privacy-First."
+BiblioPi is built as a highly performant **React 18** application using **Vite 5** as its build engine. The primary design philosophy is "Offline-First" and "Privacy-First."
 
 - **State Management**: A centralized `AppState` in `App.tsx` handles all domain data.
 - **Persistence**: Managed by `storageService.ts` via browser `localStorage` (with planned support for SQLite/Postgres backends).

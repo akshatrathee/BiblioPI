@@ -11,7 +11,7 @@ A comprehensive look at what makes BiblioPi the ultimate home library companion.
 ## 🤖 AI Integration
 
 - **Smart Recommendations**: Personalized "Read Next" picks based on your history.
-- **Automatic Summaries**: Fetches high-quality synopses and metadata using Llama 3 or Gemini.
+- **Automatic Summaries**: Fetches high-quality synopses and metadata using Gemini 3 Flash or Ollama (Llama 3).
 - **Age Gating**: Automatically hides age-inappropriate content from child profiles.
 
 ## 📊 Analytics & Insights
@@ -29,7 +29,7 @@ A comprehensive look at what makes BiblioPi the ultimate home library companion.
 ## 📦 Data & Portability
 
 - **Bulk Import**: Ready to move from Excel? Import your collection via CSV or JSON.
-- **Cloud Sync**: Optional Google Drive integration for database backups.
+- **Cloud Sync** *(Planned)*: Google Drive integration is planned for a future release. Currently supports manual JSON export/import.
 - **Offline First**: Works perfectly on your local network without an internet connection (using Ollama).
 
 ## 🛡️ Family Safety

@@ -1,12 +1,12 @@
 # BiblioPi 📚
 
-## Your Personal AI Librarian for the Modern Home (v1.2.0)
+## Your Personal AI Librarian for the Modern Home (v1.3.0)
 
 BiblioPi is a premium, AI-powered library management system designed to help families track, discover, and enjoy their physical book collections. Featuring a stunning glassmorphism UI, localized support for India, and advanced AI insights.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Stack: React 19+](https://img.shields.io/badge/Stack-React%2019-blue)](https://react.dev/)
-[![AI: Gemini Pro 2.0](https://img.shields.io/badge/AI-Gemini%202.0-orange)](https://deepmind.google/technologies/gemini/)
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![Stack: React 18](https://img.shields.io/badge/Stack-React%2018-blue)](https://react.dev/)
+[![AI: Gemini 3 Flash](https://img.shields.io/badge/AI-Gemini%203%20Flash-orange)](https://deepmind.google/technologies/gemini/)
 [![Built with: Antigravity](https://img.shields.io/badge/Built%20with-Antigravity-purple)](https://deepmind.google/antigravity)
 
 ---
@@ -22,7 +22,7 @@ BiblioPi is a premium, AI-powered library management system designed to help fam
 ### 🤖 AI-Powered Intelligence
 
 - **Reading Recommendations**: Personalized "Read Next" picks based on family reading history and interests.
-- **Auto-Summaries**: High-quality metadata, cultural context, and "How to understand this book" guides generated via **Gemini 2.0** or **Llama 3.2**.
+- **Auto-Summaries**: High-quality metadata, cultural context, and "How to understand this book" guides generated via **Gemini 3 Flash** or **Llama 3**.
 - **Child Safety**: Automated **Age Gating** hides mature content from preschooler/kid profiles (e.g., Ishani's mode).
 
 ### 📊 Advanced Analytics
@@ -33,15 +33,15 @@ BiblioPi is a premium, AI-powered library management system designed to help fam
 
 ### 📖 Immersive User Experience
 
-- **Interactive Bookshelf**: A 3D-styled virtual shelf to browse your book spines as if you're in a grand library.
-- **Voice Mastery**: Integrated voice search (STT) and read-anywhere synopsis guides.
+- **Interactive Bookshelf**: A visually styled virtual shelf to browse your book spines with gradient effects and spine styling.
+- **Voice Search** *(Planned)*: Voice search integration is planned for a future release.
 - **Multi-Read Tracking**: Log every reread, track pages read, and maintain a full history with Undo/Reset support.
 
-### � Tools & Portability
+### 🛠️ Tools & Portability
 
 - **Bulk Import**: Seamlessly migrate legacy collections via CSV (pipe-delimited) or JSON.
-- **Cloud Sync**: Encrypted Google Drive backups for your local database.
-- **QR Masters**: Generate and scan QR codes for every book in your collection for quick mobile lookups.
+- **Cloud Sync** *(Planned)*: Google Drive backup integration is planned for a future release. Currently supports manual JSON export/import.
+- **Barcode Scanner**: Scan ISBN barcodes using HID barcode scanners for quick book lookups.
 
 ### 🛡️ Family Safety & Governance
 
@@ -51,16 +51,16 @@ BiblioPi is a premium, AI-powered library management system designed to help fam
 
 ---
 
-## � Tech Stack (2026 Standards)
+## 🛠️ Tech Stack
 
-- **Frontend**: [React 19](https://react.dev/) (Concurrent rendering, Server Components ready)
-- **Tooling**: [Vite 6+](https://vitejs.dev/) (Native ESM build engine)
-- **Language**: [TypeScript 5.7+](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS 4+](https://tailwindcss.com/) (Optimized JIT engine)
-- **Icons**: Material Symbols (Variable fonts)
-- **Charts**: [Recharts 2.15+](https://recharts.org/)
-- **AI**: Google @google/generative-ai (v2.0 SDK) / Ollama Local (v0.5+)
-- **Containerization**: [Docker 28+](https://www.docker.com/)
+- **Frontend**: [React 18.3](https://react.dev/)
+- **Tooling**: [Vite 5.4](https://vitejs.dev/) (Native ESM build engine)
+- **Language**: [TypeScript 5.5](https://www.typescriptlang.org/) (Strict mode)
+- **Styling**: [Tailwind CSS 3.4](https://tailwindcss.com/) (JIT engine)
+- **Icons**: Material Symbols (Variable fonts) + Lucide React
+- **Charts**: [Recharts 2.13](https://recharts.org/)
+- **AI**: Google @google/genai (v1.0.0) / Ollama Local
+- **Containerization**: [Docker](https://www.docker.com/)
 
 ---
 
@@ -97,7 +97,7 @@ Visit:
 
 ---
 
-## � Documentation
+## 📚 Documentation
 
 - [Installation Detail](./docs/installation.md)
 - [Environment Config](./docs/environment.md)
@@ -106,9 +106,15 @@ Visit:
 
 ---
 
-## � Credits & Inspiration
+## 👥 Contributors
 
-- **Antigravity (Google Deepmind)**: For the master AI assistance in building this system.
+- **[Claude Code](https://claude.ai/code)** (Anthropic) - AI pair programming and documentation
+- **[Google Antigravity](https://deepmind.google/antigravity)** (Google DeepMind) - Core AI assistance and architecture
+
+---
+
+## 🙏 Credits & Inspiration
+
 - **[Komga](https://github.com/gotson/komga)**: For excellence in digital library hierarchy.
 - **[Koillection](https://github.com/koillection/koillection)**: For the initial collection management logic.
 - **OpenLibrary API**: The backbone of our global book database.
@@ -116,4 +122,12 @@ Visit:
 
 ---
 
-**Built with ❤️ and Antigravity by Google Deepmind.**
+## 📄 License
+
+This project is licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+You are free to share and adapt this work for non-commercial purposes, with appropriate attribution and under the same license.
+
+---
+
+**Built with ❤️ by Claude Code and Google Antigravity.**
